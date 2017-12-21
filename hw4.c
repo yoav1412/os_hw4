@@ -2,9 +2,15 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <stdbool.h>
-#include <>
+#include <pthread.h>
+#include <unistd.h>
 
-#define CHUNKSIZE 1
+#define CHUNKSIZE 1 //todo: change to 1024
+
+pthread_mutex_t shardBufferMutex;
+int out_fd, globalXorCounter, numInFiles;
+bool anyBytesRead;
+char sharedResultBuff[CHUNKSIZE];
 
 /*
  * assuming size(buff2)<=size(buff1)
@@ -26,64 +32,64 @@ bool anyActiveFile(char* activeFiles, int numInFiles){
 }
 
 
-void threadWork(int fd, char** activeInFiles, bool *anyBytesRead, char** sharedResultBuff){ //todo rename..
+void* threadWork(void* filePathParam){ //todo rename..
+    char *filePath = (char*) filePathParam;
     int numRead;
-    bool active;
+    bool active = true;
     char buff[CHUNKSIZE];
+    int fd = open(filePath, O_RDONLY);//TODO: check success
     while (active){
         if ((numRead = read(fd, buff, CHUNKSIZE)) == -1) {
             printf("Error while reading files.\n");
             //todo: exit from thread and pass err somehow..
         }
-
+        if (numRead < CHUNKSIZE) {
+            active = false;
+        }
+        // **CRITICAL SECTION BEGIN**
+        pthread_mutex_lock(&shardBufferMutex);
+        if (numRead > 0) { anyBytesRead = true; }
+        xorTwoBuffs(sharedResultBuff ,buff, numRead);
+        globalXorCounter++;
+        if (globalXorCounter == numInFiles){
+            globalXorCounter = 0;
+            if ( anyBytesRead && write(out_fd, sharedResultBuff, CHUNKSIZE) == -1 ) {
+                printf("Error while writing to outFile.\n");
+                //todo: exit from thread and pass err somehow..
+            }
+            anyBytesRead = false;
+        }
+        pthread_mutex_unlock(&shardBufferMutex);
+        // **CRITICAL SECTION END**
     }
-
+    pthread_exit(NULL); //todo; is this ok?
 }
 
 
 
 int main(int argc, char **argv){
     char* ofp = argv[1];
-    int numInFiles = argc-2;
+    int i;
+    numInFiles = argc-2;
     int outfile = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC); //TODO: check success & fix problem of when outfile already exists
     int* infiles = malloc((argc-1)*sizeof(int));
-    for (int i=2; i<argc; i++){
-        infiles[i-2] = open(argv[i], O_RDONLY); //TODO: check success
-    }
-    char buff[CHUNKSIZE];
-    char result[CHUNKSIZE];
-    char* activeInFiles = malloc(numInFiles * sizeof(char));
-    for (int i=0; i<numInFiles; i++) { activeInFiles[i] = 1; } // set all inFiles as active
-    //for every inFile, read next chunk of data:
+
+    pthread_mutex_init(&shardBufferMutex, NULL);
     int in_fd, numRead;
     bool anyBytesRead;
-    while (anyActiveFile(activeInFiles, numInFiles)) {
-        anyBytesRead = false;
-        for (int i=0; i<CHUNKSIZE; i++) { result[i] = 0; }
-        for (int i = 0; i < numInFiles; i++) {
-            in_fd = infiles[i];
-            if (!activeInFiles[i]) { //make sure we only read from files that were not finished.
-                continue;
-            }
-            if ((numRead = read(in_fd, buff, CHUNKSIZE)) == -1) {
-                printf("Error while reading files.\n");
-                return -1;
-            };
-            if (numRead < CHUNKSIZE) {
-                activeInFiles[i] = 0;
-            }
-            if (numRead > 0) { anyBytesRead = true; }
-            xorTwoBuffs(result, buff, numRead);
-        }
-        if (anyBytesRead && write(outfile, result, CHUNKSIZE) == -1 ) {
-            printf("Error while writing to outFile.\n");
-            return -1;
-        }
-
+    pthread_t *threads = malloc(numInFiles * sizeof(pthread_t*));
+    printf("Hello, creating %s from %d input files\n",ofp,numInFiles);
+    for (i=0; i<numInFiles; i++){
+        pthread_create(&threads[i], NULL, threadWork, argv[i+2]); //todo: should &attr parameter be null? or like in example code from recit8?
     }
-    //
+    for (i=0; i<numInFiles; i++){
+        pthread_join(threads[i],NULL);
+    }
+    printf("Created %s with size %d bytes\n", ofp, 999);//TODO: get num of written bytes..
+
+
     free(infiles);
-    free(activeInFiles);
+
     return 0;
 }
 

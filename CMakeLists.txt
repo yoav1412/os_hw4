@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(os_hw4)
 set(CMAKE_C_STANDARD 99)
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c99 -O3 -Wall hw4.c -pthread")
 set(SOURCE_FILES hw4.c)
 set(HEADER_FILES )
 add_executable(os_hw4 ${SOURCE_FILES})
