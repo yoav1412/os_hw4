@@ -8,10 +8,13 @@
 #define CHUNKSIZE 1 //todo: change to 1024
 
 pthread_mutex_t shardBufferMutex;
-int out_fd, globalXorCounter, numInFiles;
+int out_fd, globalXorCounter, numInFiles, numCurrentlyActiveThreads;
 bool anyBytesRead;
 char sharedResultBuff[CHUNKSIZE];
+pthread_cond_t finishedIterationCV;
 
+ //TODO: check ret values of pthreacreate, mutex_init, etx..
+//TODO: destroy mutex and cv
 /*
  * assuming size(buff2)<=size(buff1)
  */
@@ -37,27 +40,46 @@ void* threadWork(void* filePathParam){ //todo rename..
     int numRead;
     bool active = true;
     char buff[CHUNKSIZE];
-    int fd = open(filePath, O_RDONLY);//TODO: check success
+    int fd;
+    printf("in thread %d\n\tfileName = %s\n", (int) pthread_self(), filePath);//TODO rm
+    printf("\tnumInFiles = %d\n", numInFiles);//TODO rm
+    if ( (fd = open(filePath, O_RDONLY)) == -1 ){
+     printf("Error while opening file\n");
+        //todo: exit from thread and pass err somehow..
+    }
     while (active){
+        printf("\t*****\n");
         if ((numRead = read(fd, buff, CHUNKSIZE)) == -1) {
             printf("Error while reading files.\n");
             //todo: exit from thread and pass err somehow..
         }
+        printf("\tjust read %d bytes. | buff = %s \n", numRead, buff);
         if (numRead < CHUNKSIZE) {
             active = false;
+            printf("\tNO LONGER ACTIVE\n");
+            numCurrentlyActiveThreads--;//TODO: NOT THREAD SAFE!
         }
         // **CRITICAL SECTION BEGIN**
         pthread_mutex_lock(&shardBufferMutex);
         if (numRead > 0) { anyBytesRead = true; }
         xorTwoBuffs(sharedResultBuff ,buff, numRead);
+        printf("\tglobalXorCounter (befire inc) = %d\n",globalXorCounter);
         globalXorCounter++;
-        if (globalXorCounter == numInFiles){
+        printf("\tglobalXorCounter (after inc) = %d | activeThrds = %d \n",globalXorCounter, numCurrentlyActiveThreads);
+        if (globalXorCounter == numCurrentlyActiveThreads){
+            printf("\twill try to write to outfile (abyBytesRead=%d).\n", anyBytesRead);
             globalXorCounter = 0;
             if ( anyBytesRead && write(out_fd, sharedResultBuff, CHUNKSIZE) == -1 ) {
                 printf("Error while writing to outFile.\n");
                 //todo: exit from thread and pass err somehow..
             }
             anyBytesRead = false;
+            //notify
+            printf("\tBroadcasting\n");
+            pthread_cond_broadcast(&finishedIterationCV);
+        } else {
+            // if this thread is not the last to xor, don't continue to next iteration untill last thread has finished.
+            pthread_cond_wait(&finishedIterationCV, &shardBufferMutex);
         }
         pthread_mutex_unlock(&shardBufferMutex);
         // **CRITICAL SECTION END**
@@ -71,16 +93,18 @@ int main(int argc, char **argv){
     char* ofp = argv[1];
     int i;
     numInFiles = argc-2;
-    int outfile = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC); //TODO: check success & fix problem of when outfile already exists
+    numCurrentlyActiveThreads = numInFiles; //initialize
+    out_fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC, S_IRWXO); //TODO: check success & fix problem of when outfile already exists. //todo: verify that S_IRWXO is the correct flag
     int* infiles = malloc((argc-1)*sizeof(int));
 
     pthread_mutex_init(&shardBufferMutex, NULL);
+    pthread_cond_init(&finishedIterationCV, NULL);
     int in_fd, numRead;
     bool anyBytesRead;
     pthread_t *threads = malloc(numInFiles * sizeof(pthread_t*));
     printf("Hello, creating %s from %d input files\n",ofp,numInFiles);
-    for (i=0; i<numInFiles; i++){
-        pthread_create(&threads[i], NULL, threadWork, argv[i+2]); //todo: should &attr parameter be null? or like in example code from recit8?
+    for (i=2; i<argc; i++){
+        pthread_create(&threads[i-2], NULL, threadWork, argv[i]); //todo: should &attr parameter be null? or like in example code from recit8?
     }
     for (i=0; i<numInFiles; i++){
         pthread_join(threads[i],NULL);
@@ -89,7 +113,7 @@ int main(int argc, char **argv){
 
 
     free(infiles);
-
+    close(out_fd);
     return 0;
 }
 
