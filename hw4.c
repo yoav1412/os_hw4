@@ -62,12 +62,18 @@ void* threadWork(void* filePathParam){ //todo rename..
         // **CRITICAL SECTION BEGIN**
         pthread_mutex_lock(&shardBufferMutex);
         if (numRead > 0) { anyBytesRead = true; }
-        xorTwoBuffs(sharedResultBuff ,buff, numRead);
+        //if (numRead == 0) { continue; }
+        if (numRead > 0) {
+            xorTwoBuffs(sharedResultBuff ,buff, numRead);
+        }
+
         printf("\tglobalXorCounter (befire inc) = %d\n",globalXorCounter);
-        globalXorCounter++;
+        if (numRead > 0) {
+            globalXorCounter++;
+        }
         printf("\tglobalXorCounter (after inc) = %d | activeThrds = %d \n",globalXorCounter, numCurrentlyActiveThreads);
         if (globalXorCounter == numCurrentlyActiveThreads){
-            printf("\twill try to write to outfile (abyBytesRead=%d).\n", anyBytesRead);
+            printf("\twill try to write to outfile (anyBytesRead=%d).\n", anyBytesRead);
             globalXorCounter = 0;
             if ( anyBytesRead && write(out_fd, sharedResultBuff, CHUNKSIZE) == -1 ) {
                 printf("Error while writing to outFile.\n");
