@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <stdbool.h>
+#include <>
 
 #define CHUNKSIZE 1
 
@@ -25,6 +26,22 @@ bool anyActiveFile(char* activeFiles, int numInFiles){
 }
 
 
+void threadWork(int fd, char** activeInFiles, bool *anyBytesRead, char** sharedResultBuff){ //todo rename..
+    int numRead;
+    bool active;
+    char buff[CHUNKSIZE];
+    while (active){
+        if ((numRead = read(fd, buff, CHUNKSIZE)) == -1) {
+            printf("Error while reading files.\n");
+            //todo: exit from thread and pass err somehow..
+        }
+
+    }
+
+}
+
+
+
 int main(int argc, char **argv){
     char* ofp = argv[1];
     int numInFiles = argc-2;
@@ -35,7 +52,6 @@ int main(int argc, char **argv){
     }
     char buff[CHUNKSIZE];
     char result[CHUNKSIZE];
-    char* finalRes = malloc(9); int k=0;//todo rm
     char* activeInFiles = malloc(numInFiles * sizeof(char));
     for (int i=0; i<numInFiles; i++) { activeInFiles[i] = 1; } // set all inFiles as active
     //for every inFile, read next chunk of data:
