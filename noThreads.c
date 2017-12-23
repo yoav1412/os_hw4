@@ -6,8 +6,9 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <stdbool.h>
-
-#define CHUNKSIZE 1
+#include <pthread.h>
+#include <unistd.h>
+#define CHUNKSIZE 1024
 
 /*
  * assuming size(buff2)<=size(buff1)
@@ -29,10 +30,10 @@ bool anyActiveFile(char* activeFiles, int numInFiles){
 }
 
 
-int mainNoThreads(int argc, char **argv){
+int main(int argc, char **argv){
     char* ofp = argv[1];
     int numInFiles = argc-2;
-    int outfile = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC); //TODO: check success & fix problem of when outfile already exists
+    int outfile = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC, 00777); //TODO: check success & fix problem of when outfile already exists
     int* infiles = malloc((argc-1)*sizeof(int));
     for (int i=2; i<argc; i++){
         infiles[i-2] = open(argv[i], O_RDONLY); //TODO: check success
