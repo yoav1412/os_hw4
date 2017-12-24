@@ -41,7 +41,7 @@ void* threadWork(void* filePathParam){
     //printf("\t%s: numInFiles = %d\n",filePath, numInFiles);//TODO rm
     if ( (fd = open(filePath, O_RDONLY)) == -1 ){
      printf("Error while opening file\n");
-        //todo: exit from thread and pass err somehow..
+     exit(-1);
     }
     if  ((filzeSize = getFileSize(fd)) == -1) { exit(-1); }
     totalNumRead = 0;
