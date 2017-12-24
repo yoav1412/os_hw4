@@ -57,7 +57,7 @@ int main(int argc, char **argv){
             if ((numRead = read(in_fd, buff, CHUNKSIZE)) == -1) {
                 printf("Error while reading files.\n");
                 return -1;
-            };
+            }
             if (numRead < CHUNKSIZE) {
                 activeInFiles[i] = 0;
             }

@@ -14,24 +14,14 @@ pthread_cond_t finishedIterationCV;
 
  //TODO: check ret values of pthreacreate, mutex_init, etx..
 //TODO: destroy mutex and cv
-//TODO: fix balagan with multiple numRead>0 checks etc.
+
 /*
  * assuming size(buff2)<=size(buff1)
  */
-void xorTwoBuffs(char buff1[CHUNKSIZE], char buff2[CHUNKSIZE], int size2){ //TODO: does it make sense to use char*'s??
+void xorTwoBuffs(char buff1[CHUNKSIZE], char buff2[CHUNKSIZE], int size2){
     for (int i=0;i<size2; i++){
         buff1[i] ^= buff2[i];
     }
-}
-
-bool anyActiveFile(char* activeFiles, int numInFiles){ //todo: rm?
-   bool res = false;
-   for (int i=0; i<numInFiles; i++){
-       if (activeFiles[i] == 1) {
-           res = true;
-       }
-   }
-   return res;
 }
 
 int getFileSize(int fd){
@@ -41,7 +31,7 @@ int getFileSize(int fd){
     return size;
 }
 
-void* threadWork(void* filePathParam){ //todo rename..
+void* threadWork(void* filePathParam){
     char *filePath = (char*) filePathParam;
     int numRead,totalNumRead, filzeSize;
     bool active = true;
@@ -121,8 +111,6 @@ void* threadWork(void* filePathParam){ //todo rename..
 
 int main(int argc, char **argv){
 
-    char tst;
-    tst = (char) 100;
     //printf("tst=%c | %d | %s", tst, tst, &tst);
 
     char* ofp = argv[1];
@@ -130,7 +118,6 @@ int main(int argc, char **argv){
     numInFiles = argc-2;
     numCurrentlyActiveThreads = numInFiles; //initialize
     out_fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC, 00777); //TODO: ok to use 777?
-    int* infiles = malloc((argc-1)*sizeof(int));
     for (i=0; i<CHUNKSIZE; i++) { sharedResultBuff[i] = 0; } //first initialization
     pthread_mutex_init(&shardBufferMutex, NULL);
     pthread_mutex_init(&numDeactivatedThreadsMutex, NULL);
@@ -139,15 +126,16 @@ int main(int argc, char **argv){
     pthread_t *threads = malloc(numInFiles * sizeof(pthread_t*));
     printf("Hello, creating %s from %d input files\n",ofp,numInFiles);
     for (i=2; i<argc; i++){
-        pthread_create(&threads[i-2], NULL, threadWork, argv[i]); //todo: should &attr parameter be null? or like in example code from recit8?
+        pthread_create(&threads[i-2], NULL, threadWork, argv[i]);
     }
     for (i=0; i<numInFiles; i++){
         pthread_join(threads[i],NULL);
     }
     printf("Created %s with size %d bytes\n", ofp, getFileSize(out_fd));
 
-
-    free(infiles);
+    pthread_mutex_destroy(&shardBufferMutex);
+    pthread_mutex_destroy(&numDeactivatedThreadsMutex);
+    pthread_cond_destroy(&finishedIterationCV);
     close(out_fd);
     return 0;
 }
