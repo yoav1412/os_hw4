@@ -25,9 +25,10 @@ void xorTwoBuffs(char buff1[CHUNKSIZE], char buff2[CHUNKSIZE], int size2){
 }
 
 int getFileSize(int fd){
-    int currPos = lseek(fd, 0, SEEK_CUR);
-    int size = lseek(fd,0,SEEK_END);
-    lseek(fd, currPos, SEEK_SET);
+    int currPos, size;
+    if ( (currPos = lseek(fd, 0, SEEK_CUR)) == -1 ){ return -1; }
+    if ( (size = lseek(fd,0,SEEK_END)) == -1 ){ return -1; }
+    if (lseek(fd, currPos, SEEK_SET) == -1) { return -1; }
     return size;
 }
 
@@ -44,13 +45,13 @@ void* threadWork(void* filePathParam){
      printf("Error while opening file\n");
         //todo: exit from thread and pass err somehow..
     }
-    filzeSize = getFileSize(fd);
+    if  ((filzeSize = getFileSize(fd)) == -1) { exit(-1); }
     totalNumRead = 0;
     while (active){
         //printf("\t*****\n");
         if ((numRead = read(fd, buff, CHUNKSIZE)) == -1) {
             printf("Error while reading files.\n");
-            //todo: exit from thread and pass err somehow..
+            exit(-1);
         }
         totalNumRead += numRead;
         //printf("\t%s: just read %d bytes | buff = %s | totalRead = %d \n",filePath, numRead, buff, totalNumRead);
@@ -58,14 +59,14 @@ void* threadWork(void* filePathParam){
             active = false;
             //printf("\t%s: deactivated with totalRead. NO LONGER ACTIVE\n",filePath);
 
-            pthread_mutex_lock(&numDeactivatedThreadsMutex);
+            if (pthread_mutex_lock(&numDeactivatedThreadsMutex) != 0 ){exit(-1);}
             numDeactivatedThreadsInCurrIteration++;
-            pthread_mutex_unlock(&numDeactivatedThreadsMutex);
-
+            if (pthread_mutex_unlock(&numDeactivatedThreadsMutex) != 0){exit(-1);}
         }
-        if (numRead == 0) { continue; }
+
+        //if (numRead == 0) { continue; } TODO: really dont need this line?
         // **CRITICAL SECTION BEGIN**
-        pthread_mutex_lock(&shardBufferMutex);
+        if (pthread_mutex_lock(&shardBufferMutex) != 0){exit(-1);}
 
         //printf("\t%s: now xoring: sharedResultBuff (before)=%s | buff = %s\n", filePath, sharedResultBuff, buff);
         xorTwoBuffs(sharedResultBuff ,buff, numRead);
@@ -79,8 +80,8 @@ void* threadWork(void* filePathParam){
             //printf("\t%s: last one. will write to outfile.\n",filePath);
             globalXorCounter = 0;
             if (write(out_fd, sharedResultBuff, CHUNKSIZE) == -1 ) {
-                //printf("%s: Error while writing to outFile.\n", filePath);
-                //todo: exit from thread and pass err somehow..
+                printf("%s: Error while writing to outFile.\n", filePath);
+                exit(-1);
             }
 
             for (int i=0; i<CHUNKSIZE; i++) { sharedResultBuff[i] = 0; } //reset shared buff before next iteration.
@@ -93,16 +94,17 @@ void* threadWork(void* filePathParam){
 
             //wake up all other threads:
             //printf("\t%s: Broadcasting\n", filePath);
-            pthread_cond_broadcast(&finishedIterationCV);
+            if (pthread_cond_broadcast(&finishedIterationCV) != 0){exit(-1);}
         } else { // i.e, this thread is not the last to xor, don't continue to next iteration untill last thread has finished.
             //printf("\t%s: going to sleep on CV\n", filePath);
-            pthread_cond_wait(&finishedIterationCV, &shardBufferMutex);
+            if (pthread_cond_wait(&finishedIterationCV, &shardBufferMutex) != 0){exit(-1);}
             //printf("\t%s: Woke up!\n", filePath);
         }
-        pthread_mutex_unlock(&shardBufferMutex);
+        if (pthread_mutex_unlock(&shardBufferMutex) != 0){exit(-1);}
         // **CRITICAL SECTION END**
 
     }
+    if (close(fd) != 0){exit(-1);}
     printf("\t%s: Finished.\n", filePath);
     pthread_exit(NULL); //todo; is this ok?
 }
@@ -114,29 +116,33 @@ int main(int argc, char **argv){
     //printf("tst=%c | %d | %s", tst, tst, &tst);
 
     char* ofp = argv[1];
-    int i;
+    int i, outFileSize;
+    pthread_t *threads;
     numInFiles = argc-2;
     numCurrentlyActiveThreads = numInFiles; //initialize
-    out_fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC, 00777); //TODO: ok to use 777?
+    if ( (out_fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC, 00777)) == -1){exit(-1);} //TODO: ok to use 777?
     for (i=0; i<CHUNKSIZE; i++) { sharedResultBuff[i] = 0; } //first initialization
-    pthread_mutex_init(&shardBufferMutex, NULL);
-    pthread_mutex_init(&numDeactivatedThreadsMutex, NULL);
+    if (pthread_mutex_init(&shardBufferMutex, NULL) != 0){exit(-1);}
+    if (pthread_mutex_init(&numDeactivatedThreadsMutex, NULL) != 0){exit(-1);}
 
-    pthread_cond_init(&finishedIterationCV, NULL);
-    pthread_t *threads = malloc(numInFiles * sizeof(pthread_t*));
+    if (pthread_cond_init(&finishedIterationCV, NULL) != 0){exit(-1);}
+    if ( (threads = malloc(numInFiles * sizeof(pthread_t*))) == NULL ){exit(-1);}
     printf("Hello, creating %s from %d input files\n",ofp,numInFiles);
     for (i=2; i<argc; i++){
-        pthread_create(&threads[i-2], NULL, threadWork, argv[i]);
+        if (pthread_create(&threads[i-2], NULL, threadWork, argv[i]) != 0){exit(-1);}
     }
     for (i=0; i<numInFiles; i++){
-        pthread_join(threads[i],NULL);
+        if (pthread_join(threads[i],NULL) != 0){exit(-1);}
     }
-    printf("Created %s with size %d bytes\n", ofp, getFileSize(out_fd));
+    if ( (outFileSize = getFileSize(out_fd)) == -1 ){exit(-1);}
+    printf("Created %s with size %d bytes\n", ofp, outFileSize);
 
-    pthread_mutex_destroy(&shardBufferMutex);
-    pthread_mutex_destroy(&numDeactivatedThreadsMutex);
-    pthread_cond_destroy(&finishedIterationCV);
-    close(out_fd);
+    if (pthread_mutex_destroy(&shardBufferMutex) != 0){exit(-1);}
+    if (pthread_mutex_destroy(&numDeactivatedThreadsMutex) != 0){exit(-1);}
+    if (pthread_cond_destroy(&finishedIterationCV) != 0){exit(-1);}
+
+    free(threads);
+    if (close(out_fd) != 0){exit(-1);}
     return 0;
 }
 
