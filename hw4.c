@@ -12,8 +12,6 @@ int out_fd, globalXorCounter, numInFiles, numCurrentlyActiveThreads, numDeactiva
 char sharedResultBuff[CHUNKSIZE];
 pthread_cond_t finishedIterationCV;
 
- //TODO: check ret values of pthreacreate, mutex_init, etx..
-//TODO: destroy mutex and cv
 
 /*
  * assuming size(buff2)<=size(buff1)
