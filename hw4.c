@@ -76,7 +76,7 @@ void* threadWork(void* filePathParam){
         //printf("\t%s: globalXorCounter (after inc) = %d | activeThrds = %d \n",filePath,globalXorCounter, numCurrentlyActiveThreads);
         //update global var that hold max number of bytes read by any thread in current iteration.
         globalMaxNumReadInIteration = numRead > globalMaxNumReadInIteration ? numRead : globalMaxNumReadInIteration;
-        if (globalMaxNumReadInIteration != CHUNKSIZE) printf("\t%s: globalMaxNumReadInIteration (after update) = %d \n",filePath,globalMaxNumReadInIteration);
+        if (globalMaxNumReadInIteration != CHUNKSIZE) printf("\t%s: globalMaxNumReadInIteration (after update) = %d \n",filePath,globalMaxNumReadInIteration);//todo rm
         if (globalXorCounter == numCurrentlyActiveThreads){ //i.e, is this the last thread to reach this point.
             //printf("\t%s: last one. will write to outfile.\n",filePath);
             globalXorCounter = 0;
@@ -121,7 +121,7 @@ int main(int argc, char **argv){
     pthread_t *threads;
     numInFiles = argc-2;
     numCurrentlyActiveThreads = numInFiles; //initialize
-    if ( (out_fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC, 00777)) == -1){exit(-1);} //TODO: ok to use 777?
+    if ( (out_fd = open(argv[1], O_WRONLY|O_CREAT|O_TRUNC, 00777)) == -1){exit(-1);}
     for (i=0; i<CHUNKSIZE; i++) { sharedResultBuff[i] = 0; } //first initialization
     if (pthread_mutex_init(&shardBufferMutex, NULL) != 0){exit(-1);}
     if (pthread_mutex_init(&numDeactivatedThreadsMutex, NULL) != 0){exit(-1);}
