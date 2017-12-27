@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#define CHUNKSIZE 1412 //todo: change to 1024
+#define CHUNKSIZE 1048576 //todo: change to 2**20
 
 pthread_mutex_t shardBufferMutex, numDeactivatedThreadsMutex;
 int out_fd, globalXorCounter, numInFiles, numCurrentlyActiveThreads, numDeactivatedThreadsInCurrIteration = 0;
@@ -113,9 +113,6 @@ void* threadWork(void* filePathParam){
 
 
 int main(int argc, char **argv){
-
-    //printf("tst=%c | %d | %s", tst, tst, &tst);
-
     char* ofp = argv[1];
     int i, outFileSize;
     pthread_t *threads;
