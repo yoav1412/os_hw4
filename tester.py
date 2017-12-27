@@ -1,12 +1,21 @@
-import subprocess
+import os
 
-IN_FILES = ["in1","in2"]
-TEST_SIZE = 10
+IN_FILES_DIRECTORY = "./testFiles/inFiles"
+IN_FILES =[ IN_FILES_DIRECTORY+"/" + f for f in os.listdir(IN_FILES_DIRECTORY)]
+TEST_SIZE = 2
+OUTFILE1 = "resultFileThreads.txt"
+OUTFILE2 = "resultFileNoThreads.txt"
+
 for i in range(TEST_SIZE):
-    subprocess.call("xor_threads.txt resultFileThreads "+" ".join(IN_FILES))
-    subprocess.call("xor_no_threads.txt resultFileNoThreads "+" ".join(IN_FILES))
+   	os.system("./xor_threads  {} ".format(OUTFILE1)+" ".join(IN_FILES))
+   	os.system("./xor_no_threads  {} ".format(OUTFILE2)+" {}/".format(IN_FILES_DIRECTORY).join(IN_FILES))
 
-    threadsRes = open('xor_threads.txt','rb')
-    noThreadsRed = open('xor_no_threads.txt','rb')
-    if threadsRes.read() != noThreadsRed.read():
-        print "test #{} failed.".format(i)
+   	threadsRes = open(OUTFILE1,'rb').read()
+   	noThreadsRes = open(OUTFILE2,'rb').read()
+	#threadsRes =  threadsRes.read() 
+	#noThreadsRes = noThreadsRes.read()
+
+	
+	if threadsRes != noThreadsRes:
+		print "test #{} failed: (threads: {}) vs (no threads: {})".format(i,threadsRes,noThreadsRes)
+		print "file sizes: threads: {} | no threads: {}".format(len(threadsRes),len(noThreadsRes))

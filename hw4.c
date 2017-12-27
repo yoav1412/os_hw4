@@ -5,10 +5,11 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#define CHUNKSIZE 1024 //todo: change to 1024
+#define CHUNKSIZE 1412 //todo: change to 1024
 
 pthread_mutex_t shardBufferMutex, numDeactivatedThreadsMutex;
 int out_fd, globalXorCounter, numInFiles, numCurrentlyActiveThreads, numDeactivatedThreadsInCurrIteration = 0;
+int globalMaxNumReadInIteration = 0;
 char sharedResultBuff[CHUNKSIZE];
 pthread_cond_t finishedIterationCV;
 
@@ -40,7 +41,7 @@ void* threadWork(void* filePathParam){
     //printf("in thread %d\n\tfileName = %s\n", (int) pthread_self(), filePath);//TODO rm
     //printf("\t%s: numInFiles = %d\n",filePath, numInFiles);//TODO rm
     if ( (fd = open(filePath, O_RDONLY)) == -1 ){
-     printf("Error while opening file\n");
+     printf("Error while opening file: %s\n", filePath);
      exit(-1);
     }
     if  ((filzeSize = getFileSize(fd)) == -1) { exit(-1); }
@@ -73,15 +74,17 @@ void* threadWork(void* filePathParam){
         //printf("\t%s: globalXorCounter (before inc) = %d\n",filePath,globalXorCounter);
         globalXorCounter++;
         //printf("\t%s: globalXorCounter (after inc) = %d | activeThrds = %d \n",filePath,globalXorCounter, numCurrentlyActiveThreads);
-
+        //update global var that hold max number of bytes read by any thread in current iteration.
+        globalMaxNumReadInIteration = numRead > globalMaxNumReadInIteration ? numRead : globalMaxNumReadInIteration;
+        if (globalMaxNumReadInIteration != CHUNKSIZE) printf("\t%s: globalMaxNumReadInIteration (after update) = %d \n",filePath,globalMaxNumReadInIteration);
         if (globalXorCounter == numCurrentlyActiveThreads){ //i.e, is this the last thread to reach this point.
             //printf("\t%s: last one. will write to outfile.\n",filePath);
             globalXorCounter = 0;
-            if (write(out_fd, sharedResultBuff, CHUNKSIZE) == -1 ) {
+            if (write(out_fd, sharedResultBuff, globalMaxNumReadInIteration) == -1 ) {
                 printf("%s: Error while writing to outFile.\n", filePath);
                 exit(-1);
             }
-
+            globalMaxNumReadInIteration = 0; //reset
             for (int i=0; i<CHUNKSIZE; i++) { sharedResultBuff[i] = 0; } //reset shared buff before next iteration.
 
             //Update # of active threads for next iteration (done only by last thread):
@@ -91,12 +94,12 @@ void* threadWork(void* filePathParam){
 
 
             //wake up all other threads:
-            //printf("\t%s: Broadcasting\n", filePath);
+            //printf("\t%s: Broadcasting\n", filePath); //todo rm
             if (pthread_cond_broadcast(&finishedIterationCV) != 0){exit(-1);}
         } else { // i.e, this thread is not the last to xor, don't continue to next iteration untill last thread has finished.
-            //printf("\t%s: going to sleep on CV\n", filePath);
+            //printf("\t%s: going to sleep on CV\n", filePath); // todo rm
             if (pthread_cond_wait(&finishedIterationCV, &shardBufferMutex) != 0){exit(-1);}
-            //printf("\t%s: Woke up!\n", filePath);
+            //printf("\t%s: Woke up!\n", filePath); //todo rm
         }
         if (pthread_mutex_unlock(&shardBufferMutex) != 0){exit(-1);}
         // **CRITICAL SECTION END**

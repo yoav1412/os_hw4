@@ -44,9 +44,10 @@ int main(int argc, char **argv){
     char* activeInFiles = malloc(numInFiles * sizeof(char));
     for (int i=0; i<numInFiles; i++) { activeInFiles[i] = 1; } // set all inFiles as active
     //for every inFile, read next chunk of data:
-    int in_fd, numRead;
+    int in_fd, numRead, maxNumReadInIteration=0;
     bool anyBytesRead;
     while (anyActiveFile(activeInFiles, numInFiles)) {
+        maxNumReadInIteration=0;
         anyBytesRead = false;
         for (int i=0; i<CHUNKSIZE; i++) { result[i] = 0; }
         for (int i = 0; i < numInFiles; i++) {
@@ -58,13 +59,14 @@ int main(int argc, char **argv){
                 printf("Error while reading files.\n");
                 return -1;
             }
+            maxNumReadInIteration = numRead > maxNumReadInIteration ? numRead : maxNumReadInIteration;
             if (numRead < CHUNKSIZE) {
                 activeInFiles[i] = 0;
             }
             if (numRead > 0) { anyBytesRead = true; }
             xorTwoBuffs(result, buff, numRead);
         }
-        if (anyBytesRead && write(outfile, result, CHUNKSIZE) == -1 ) {
+        if (anyBytesRead && write(outfile, result, maxNumReadInIteration) == -1 ) {
             printf("Error while writing to outFile.\n");
             return -1;
         }
