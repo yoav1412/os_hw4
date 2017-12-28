@@ -14,21 +14,24 @@ def createRandomFile(oom_in_bytes, path):
 
 import os
 executable1 = "./xor_threads"
-executable2 = "./xor_no_threads"
+executable2 = "./melman"
 IN_FILES_DIRECTORY = "./testFiles/inFiles"
 
-TEST_SIZE = 5
+TEST_SIZE = 1
 OUTFILE1 = "./testFiles/resultFileThreads.txt"
 OUTFILE2 = "./testFiles/resultFileNoThreads.txt"
 
 PRINT=False
 print "Starting test:"
 for i in range(TEST_SIZE):
-	oom_in_bytes = random.choice([1,10,10**2,10**3, 10**6])
-	numFiles= random.randint(1,12)
+	#oom_in_bytes = random.choice([1,10,10**2,10**3, 10**6])
+	oom_in_bytes = random.choice([15*10**6])
+	numFiles= random.randint(1,1)
+	print "will create {} files in oom {}".format(numFiles,oom_in_bytes)
 	for j in range(numFiles):
 		fname= IN_FILES_DIRECTORY+"/"+str(j)
 		createRandomFile(oom_in_bytes,fname)
+		a = len(a)
 		if PRINT:
 			print "created file {} . oombytes = {}".format(fname,oom_in_bytes)
 	IN_FILES =[ IN_FILES_DIRECTORY+"/" + f for f in os.listdir(IN_FILES_DIRECTORY)]
