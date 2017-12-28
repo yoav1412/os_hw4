@@ -141,6 +141,10 @@ int main(int argc, char **argv){
     if ( (outFileSize = getFileSize(out_fd)) == -1 ){
         printf("Error Encountered, exiting...\n");
         exit(-1);}
+
+    if (close(out_fd) != 0){
+        printf("Error Encountered, exiting...\n");
+        exit(-1);}
     printf("Created %s with size %d bytes\n", ofp, outFileSize);
 
     if (pthread_mutex_destroy(&shardBufferMutex) != 0){
@@ -154,9 +158,6 @@ int main(int argc, char **argv){
         exit(-1);}
 
     free(threads);
-    if (close(out_fd) != 0){
-        printf("Error Encountered, exiting...\n");
-        exit(-1);}
     return 0;
 }
 
