@@ -53,7 +53,7 @@ void* threadWork(void* filePathParam){
             printf("Error while reading files.\n");
             exit(-1);}
         while ( numRead < CHUNKSIZE ) {
-            if ((tmpNumRead = read(fd, buff, CHUNKSIZE - numRead)) == -1) {
+            if ((tmpNumRead = read(fd, buff + numRead, (size_t) CHUNKSIZE - numRead)) == -1) {
                 printf("Error while reading files.\n");
                 exit(-1);}
             if (tmpNumRead == 0){ break; }
@@ -80,12 +80,12 @@ void* threadWork(void* filePathParam){
         globalMaxNumReadInIteration = numRead > globalMaxNumReadInIteration ? numRead : globalMaxNumReadInIteration;
         if (globalXorCounter == numCurrentlyActiveThreads){ //i.e, is this the last thread to reach this point.
             globalXorCounter = 0;
-            if ( (numWritten = write(out_fd, sharedResultBuff, globalMaxNumReadInIteration)) == -1 ) {
+            if ( (numWritten = write(out_fd, sharedResultBuff, (size_t) globalMaxNumReadInIteration)) == -1 ) {
                 printf("%s: Error while writing to outFile.\n", filePath);
                 exit(-1);}
             writeRetries = 0;
             while (numWritten < globalMaxNumReadInIteration) {
-                if ( (tmpNumWritten = write(out_fd, sharedResultBuff, globalMaxNumReadInIteration - numWritten)) == -1 ) {
+                if ( (tmpNumWritten = write(out_fd, sharedResultBuff + numWritten, (size_t) globalMaxNumReadInIteration - numWritten)) == -1 ) {
                     printf("%s: Error while writing to outFile.\n", filePath);
                     exit(-1);}
                 if (tmpNumWritten == 0) { writeRetries++; }
