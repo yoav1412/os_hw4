@@ -6,6 +6,8 @@
 #include <unistd.h>
 
 #define CHUNKSIZE 1048576 //2**20 bytes
+#define MAX_WRITE_RETRIES 5 //this defines how many times we keep trying to write to a file in the unlikely case that "write" returns 0 (when the number of bytes we asked to write > 0), as suggested in: https://stackoverflow.com/questions/24259640/writing-a-full-buffer-using-write-system-call
+
 
 pthread_mutex_t shardBufferMutex, numDeactivatedThreadsMutex;
 int out_fd, globalXorCounter, numInFiles, numCurrentlyActiveThreads, numDeactivatedThreadsInCurrIteration = 0;
@@ -33,7 +35,7 @@ int getFileSize(int fd){
 
 void* threadWork(void* filePathParam){
     char *filePath = (char*) filePathParam;
-    int numRead,totalNumRead, filzeSize;
+    int numRead, tmpNumRead, numWritten, tmpNumWritten, writeRetries, totalNumRead, filzeSize;
     bool active = true;
     char buff[CHUNKSIZE];
     int fd;
@@ -49,7 +51,13 @@ void* threadWork(void* filePathParam){
     while (active){
         if ((numRead = read(fd, buff, CHUNKSIZE)) == -1) {
             printf("Error while reading files.\n");
-            exit(-1);
+            exit(-1);}
+        while ( numRead < CHUNKSIZE ) {
+            if ((tmpNumRead = read(fd, buff, CHUNKSIZE - numRead)) == -1) {
+                printf("Error while reading files.\n");
+                exit(-1);}
+            if (tmpNumRead == 0){ break; }
+            numRead += tmpNumRead;
         }
         totalNumRead += numRead;
         if (totalNumRead == filzeSize) {
@@ -72,9 +80,20 @@ void* threadWork(void* filePathParam){
         globalMaxNumReadInIteration = numRead > globalMaxNumReadInIteration ? numRead : globalMaxNumReadInIteration;
         if (globalXorCounter == numCurrentlyActiveThreads){ //i.e, is this the last thread to reach this point.
             globalXorCounter = 0;
-            if (write(out_fd, sharedResultBuff, globalMaxNumReadInIteration) == -1 ) {
+            if ( (numWritten = write(out_fd, sharedResultBuff, globalMaxNumReadInIteration)) == -1 ) {
                 printf("%s: Error while writing to outFile.\n", filePath);
-                exit(-1);
+                exit(-1);}
+            writeRetries = 0;
+            while (numWritten < globalMaxNumReadInIteration) {
+                if ( (tmpNumWritten = write(out_fd, sharedResultBuff, globalMaxNumReadInIteration - numWritten)) == -1 ) {
+                    printf("%s: Error while writing to outFile.\n", filePath);
+                    exit(-1);}
+                if (tmpNumWritten == 0) { writeRetries++; }
+                if (writeRetries == MAX_WRITE_RETRIES) {
+                    printf("%s: Error while writing to outFile.\n", filePath);
+                    exit(-1);
+                }
+                numWritten += tmpNumWritten;
             }
             globalMaxNumReadInIteration = 0; //reset
             for (int i=0; i<CHUNKSIZE; i++) { sharedResultBuff[i] = 0; } //reset shared buff before next iteration.
